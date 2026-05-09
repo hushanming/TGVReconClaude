@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pkg-config --modversion eigen3)",
+      "Read(//opt/homebrew/Cellar/libomp/20.1.5/lib/**)",
+      "Read(//opt/homebrew/Cellar/tbb/2022.1.0/include/tbb/**)",
+      "Read(//opt/homebrew/Cellar/libomp/**)",
+      "Read(//opt/homebrew/Cellar/tbb/**)",
+      "Bash(clang++ --version)",
+      "Bash(cmake --version)",
+      "Bash(pkg-config --libs --cflags eigen3)",
+      "Bash(cmake *)"
+    ]
+  }
+}

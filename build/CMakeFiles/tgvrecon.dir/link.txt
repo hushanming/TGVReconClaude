@@ -1,0 +1,2 @@
+/usr/bin/ar qc libtgvrecon.a CMakeFiles/tgvrecon.dir/src/depth_map.cpp.o CMakeFiles/tgvrecon.dir/src/octree_builder.cpp.o CMakeFiles/tgvrecon.dir/src/merge.cpp.o CMakeFiles/tgvrecon.dir/src/balance.cpp.o CMakeFiles/tgvrecon.dir/src/treetop.cpp.o CMakeFiles/tgvrecon.dir/src/histogram.cpp.o CMakeFiles/tgvrecon.dir/src/tgv.cpp.o CMakeFiles/tgvrecon.dir/src/marching_cubes.cpp.o
+/usr/bin/ranlib libtgvrecon.a

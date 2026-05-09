@@ -1,0 +1,2 @@
+/usr/bin/ar qc libtgvrecon_stage1.a CMakeFiles/tgvrecon_stage1.dir/src/depth_map.cpp.o CMakeFiles/tgvrecon_stage1.dir/src/octree_builder.cpp.o
+/usr/bin/ranlib libtgvrecon_stage1.a
