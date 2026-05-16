@@ -5,30 +5,58 @@
 #include <string>
 #include <vector>
 
-// A triangle in the output mesh.
-struct Triangle {
-    Vec3f v[3];
+// Indexed triangle mesh with deduplicated vertices.
+struct Mesh {
+    std::vector<Vec3f>    verts;         // unique vertex positions
+    std::vector<uint32_t> faces;         // 3 indices per triangle, CCW winding
+    std::vector<Vec3f>    normals;       // per-vertex averaged face normals (optional)
+
+    bool   empty()     const { return faces.empty(); }
+    size_t tri_count() const { return faces.size() / 3; }
 };
 
-// Extract the u=0 iso-surface from the TGV result.
-// For each octree cube, checks sign changes of u across the 6 faces;
-// triangulates using the standard 15-case Marching Cubes lookup.
-// Neighbouring cubes at different octree depths are handled by using
-// the u value of the coarser cube's face as the boundary value.
+// Extract the u=0 iso-surface from TGV state as an indexed mesh.
+// Vertices that lie at the same quantised position are merged, giving a
+// manifold mesh for each connected sign-change surface.
 //
-// cubes:  sorted balanced OctreeCube array.
-// state:  TGV state (same order as cubes).
-// origin: world-space corner of scene AABB.
-// r_root: half-size of root cube.
-// has_data[i] = true if cube i has at least one histogram observation.
-// Triangles are only emitted between cubes where both sides have data,
-// preventing boundary artifacts at the observed/unobserved interface.
-std::vector<Triangle> extract_surface(
+// cubes    : balanced OctreeCube array (Morton-sorted).
+// state    : TGV state, same order.
+// origin   : world-space lower-corner of scene AABB.
+// r_root   : half-size of root cube.
+// has_data : if non-empty, triangles are only emitted when both adjacent
+//            cubes have at least one histogram vote (avoids spurious patches).
+Mesh extract_surface(
     const std::vector<OctreeCube>& cubes,
-    const std::vector<TGVCube>& state,
-    const Vec3f& origin,
-    float r_root,
-    const std::vector<bool>& has_data = {});
+    const std::vector<TGVCube>&    state,
+    const Vec3f&                   origin,
+    float                          r_root,
+    const std::vector<bool>&       has_data = {});
 
-// Write triangles to a Wavefront .obj file.
-void write_obj(const std::string& path, const std::vector<Triangle>& tris);
+// Streaming out-of-core surface extraction.
+// Reads cubes / state / histograms from disk a treetop leaf at a time, applies
+// an ownership rule on cube-pair iteration so each face pair is emitted exactly
+// once, and writes the final closed mesh directly to a Wavefront .obj file.
+//
+// Peak RAM is bounded by a single leaf's data + a vertex dedup map sized
+// proportional to the final surface area (≪ total cube count).
+//
+// has_data filtering is implicit: faces are emitted only when both adjacent
+// cubes have at least one histogram vote.
+void extract_surface_streaming(
+    const std::string& balanced_cube_path,
+    const std::string& tgv_state_path,
+    const std::string& treetop_path,
+    const std::string& hist_path,
+    const Vec3f&       origin,
+    float              r_root,
+    const std::string& out_obj_path);
+
+// Compute per-vertex normals from face normals and store in mesh.normals.
+// Normals are averaged over adjacent faces and normalised.
+void compute_normals(Mesh& mesh);
+
+// Write mesh to Wavefront .obj (vertices + faces; normals if present).
+void write_obj(const std::string& path, const Mesh& mesh);
+
+// Triangle (kept for legacy use in small unit tests).
+struct Triangle { Vec3f v[3]; };

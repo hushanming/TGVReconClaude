@@ -113,3 +113,30 @@ std::vector<OctreeCube> load_cubes(const std::string& path, float& r_root_out) {
                 hdr.cube_count * sizeof(OctreeCube));
     return cubes;
 }
+
+std::vector<OctreeCube> load_cubes_range(const std::string& path,
+                                          uint32_t first_idx,
+                                          uint32_t last_idx,
+                                          float& r_root_out) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) throw std::runtime_error("Cannot open cube file: " + path);
+
+    CubeFileHeader hdr;
+    in.read(reinterpret_cast<char*>(&hdr), sizeof(hdr));
+    if (hdr.magic[0] != 'T' || hdr.magic[1] != 'G' ||
+        hdr.magic[2] != 'V' || hdr.magic[3] != '1')
+        throw std::runtime_error("Bad magic in cube file: " + path);
+
+    r_root_out = hdr.r_root;
+    if (first_idx >= hdr.cube_count || first_idx > last_idx)
+        return {};
+
+    uint32_t end = std::min(last_idx + 1, hdr.cube_count);
+    uint32_t count = end - first_idx;
+
+    in.seekg(sizeof(CubeFileHeader) +
+             static_cast<std::streamoff>(first_idx) * sizeof(OctreeCube));
+    std::vector<OctreeCube> cubes(count);
+    in.read(reinterpret_cast<char*>(cubes.data()), count * sizeof(OctreeCube));
+    return cubes;
+}

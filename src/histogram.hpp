@@ -47,7 +47,25 @@ std::vector<CubeHistogram> compute_histograms(
     const Vec3f& scene_origin,
     float r_root);
 
+// Out-of-core histogram computation: process one treetop leaf at a time.
+// Reads cube ranges directly from `balanced_cube_path` (random-access).
+// Writes a flat CubeHistogram[total_cubes] file at `out_hist_path`.
+// Peak RAM per leaf = N_cubesPerLeaf * (sizeof(OctreeCube) + sizeof(CubeHistogram)).
+#include "treetop.hpp"
+void compute_histograms_oc(
+    const std::string&               balanced_cube_path,
+    const std::vector<TreetopLeaf>&  leaves,
+    const std::vector<DepthMipmap>&  depth_maps,
+    const Vec3f&                     scene_origin,
+    float                            r_root,
+    const std::string&               out_hist_path);
+
 // File I/O  (magic 'TGVH', version 1, count uint32, then raw CubeHistogram[]).
 void save_histograms(const std::string& path,
                      const std::vector<CubeHistogram>& hists);
 std::vector<CubeHistogram> load_histograms(const std::string& path);
+
+// Random-access read: load histograms for a range [first, last] (inclusive).
+std::vector<CubeHistogram> load_histograms_range(const std::string& path,
+                                                  uint32_t first_idx,
+                                                  uint32_t last_idx);

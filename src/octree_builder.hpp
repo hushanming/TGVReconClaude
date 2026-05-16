@@ -31,6 +31,13 @@ void build_cubes_from_depthmap(
 // Load cubes back from a cube file (for testing / downstream stages).
 std::vector<OctreeCube> load_cubes(const std::string& path, float& r_root_out);
 
+// Load a contiguous slice [first_idx, last_idx] (inclusive) of cubes without
+// reading the whole file.  r_root_out receives the scene scale from the header.
+std::vector<OctreeCube> load_cubes_range(const std::string& path,
+                                          uint32_t first_idx,
+                                          uint32_t last_idx,
+                                          float& r_root_out);
+
 // Compute target octree depth for a sample radius r_x.
 // Returns d such that 0.75*r_x <= r_root/2^d < 1.5*r_x.
 // Clamps to [0, max_depth].

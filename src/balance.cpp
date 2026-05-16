@@ -61,11 +61,18 @@ void balance_octree(const std::string& in_path, const std::string& out_path) {
     float r_root;
     std::vector<OctreeCube> cubes = load_cubes(in_path, r_root);
 
-    // Fast lookup: dc_key → r_c
+    // Fast lookup: dc_key → (r_c_sum, count).
+    // Average r_c when multiple cubes map to the same (depth, code) cell.
     std::unordered_map<uint64_t, float> rc_map;
+    std::unordered_map<uint64_t, uint32_t> rc_cnt;
     rc_map.reserve(cubes.size() * 2);
-    for (auto& c : cubes)
-        rc_map[dc_key(c.depth, code64(c.code))] = c.r_c;
+    for (auto& c : cubes) {
+        uint64_t k = dc_key(c.depth, code64(c.code));
+        rc_map[k]  += c.r_c;
+        rc_cnt[k]  += 1;
+    }
+    for (auto& [k, v] : rc_map)
+        v /= static_cast<float>(rc_cnt[k]);
 
     // Per-depth sets for fast ancestor checks (depth 0..21).
     // We store fine-grid code64 values per depth level.

@@ -25,7 +25,8 @@ add_library(tgvrecon STATIC
     src/treetop.cpp
     src/histogram.cpp
     src/tgv.cpp
-    src/marching_cubes.cpp)
+    src/marching_cubes.cpp
+    src/qslim.cpp)
 target_include_directories(tgvrecon PUBLIC src)
 target_include_directories(tgvrecon PRIVATE "${LIBOMP_DIR}/include")
 target_link_libraries(tgvrecon PUBLIC Eigen3::Eigen TBB::tbb)

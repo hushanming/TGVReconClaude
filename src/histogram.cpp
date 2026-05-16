@@ -1,4 +1,5 @@
 #include "histogram.hpp"
+#include "octree_builder.hpp"
 #include <Eigen/LU>
 #include <algorithm>
 #include <cmath>
@@ -195,4 +196,61 @@ std::vector<CubeHistogram> load_histograms(const std::string& path) {
         in.read(reinterpret_cast<char*>(hists.data()),
                 hdr.count * sizeof(CubeHistogram));
     return hists;
+}
+
+std::vector<CubeHistogram> load_histograms_range(const std::string& path,
+                                                  uint32_t first_idx,
+                                                  uint32_t last_idx) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) throw std::runtime_error("Cannot open: " + path);
+    HistFileHeader hdr;
+    in.read(reinterpret_cast<char*>(&hdr), sizeof(hdr));
+    if (hdr.magic[0]!='T'||hdr.magic[1]!='G'||hdr.magic[2]!='V'||hdr.magic[3]!='H')
+        throw std::runtime_error("Bad histogram magic");
+    if (first_idx >= hdr.count || first_idx > last_idx) return {};
+    uint32_t end   = std::min(last_idx + 1, hdr.count);
+    uint32_t count = end - first_idx;
+    in.seekg(sizeof(HistFileHeader) +
+             static_cast<std::streamoff>(first_idx) * sizeof(CubeHistogram));
+    std::vector<CubeHistogram> hists(count);
+    in.read(reinterpret_cast<char*>(hists.data()), count * sizeof(CubeHistogram));
+    return hists;
+}
+
+// ---------- out-of-core histogram computation --------------------------------
+
+void compute_histograms_oc(
+    const std::string&               balanced_cube_path,
+    const std::vector<TreetopLeaf>&  leaves,
+    const std::vector<DepthMipmap>&  depth_maps,
+    const Vec3f&                     scene_origin,
+    float                            r_root,
+    const std::string&               out_hist_path)
+{
+    // Count total cubes from last leaf.
+    if (leaves.empty()) {
+        std::ofstream out(out_hist_path, std::ios::binary);
+        HistFileHeader hdr; hdr.count = 0;
+        out.write(reinterpret_cast<const char*>(&hdr), sizeof(hdr));
+        return;
+    }
+    uint32_t total_cubes = leaves.back().last_idx + 1;
+
+    // Write header, then stream leaf histograms in index order.
+    std::ofstream out(out_hist_path, std::ios::binary);
+    if (!out) throw std::runtime_error("Cannot open: " + out_hist_path);
+    HistFileHeader hdr; hdr.count = total_cubes;
+    out.write(reinterpret_cast<const char*>(&hdr), sizeof(hdr));
+
+    // Leaves are already sorted by first_idx (they span the entire cube file).
+    float r_root_tmp;
+    for (const auto& leaf : leaves) {
+        auto leaf_cubes = load_cubes_range(balanced_cube_path,
+                                           leaf.first_idx, leaf.last_idx,
+                                           r_root_tmp);
+        auto leaf_hists = compute_histograms(leaf_cubes, depth_maps,
+                                             scene_origin, r_root);
+        out.write(reinterpret_cast<const char*>(leaf_hists.data()),
+                  leaf_hists.size() * sizeof(CubeHistogram));
+    }
 }

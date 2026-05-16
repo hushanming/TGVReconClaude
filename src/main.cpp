@@ -6,6 +6,7 @@
 #include "histogram.hpp"
 #include "tgv.hpp"
 #include "marching_cubes.hpp"
+#include "qslim.hpp"
 #include <Eigen/Core>
 #include <filesystem>
 #include <fstream>
@@ -119,10 +120,7 @@ int main(int argc, char* argv[]) {
     auto leaves = load_treetop(treetop_path, r_root_check);
     std::cout << "  " << leaves.size() << " treetop leaves.\n";
 
-    // ---- Load balanced cubes for stages 5-7 ---------------------------------
-    std::vector<OctreeCube> cubes = load_cubes(balanced_path, r_root_check);
-    std::cout << "  " << cubes.size() << " balanced cubes.\n";
-
+    // ---- Build depth map mipmaps (shared across stages 5-7) -----------------
     std::vector<DepthMipmap> mipmaps;
     mipmaps.reserve(raw_dms.size());
     for (auto& dm : raw_dms) {
@@ -131,28 +129,31 @@ int main(int argc, char* argv[]) {
         mipmaps.push_back(std::move(mm));
     }
 
-    // ---- Stage 5: histogram computation -------------------------------------
-    std::cout << "[Stage 5] Computing histograms...\n";
-    auto hists = compute_histograms(cubes, mipmaps, origin, r_root);
+    // ---- Stage 5: out-of-core histogram computation (per treetop leaf) ------
+    std::cout << "[Stage 5] Computing histograms (out-of-core, "
+              << leaves.size() << " leaves)...\n";
     std::string hist_path = (fs::path(out_dir) / "histograms.bin").string();
-    save_histograms(hist_path, hists);
+    compute_histograms_oc(balanced_path, leaves, mipmaps, origin, r_root, hist_path);
 
-    // ---- Stage 6: TGV minimization ------------------------------------------
-    std::cout << "[Stage 6] TGV minimization...\n";
+    // ---- Stage 6: streaming TGV minimization (per treetop leaf) -------------
+    // All large arrays (cubes, histograms, TGV state, frozen bars) live on disk;
+    // peak RAM is bounded by one treetop leaf.
+    std::cout << "[Stage 6] TGV minimization (streaming, "
+              << leaves.size() << " leaves)...\n";
     TGVParams params;
-    auto tgv_state = tgv_minimize(cubes, hists, origin, r_root, params);
     std::string tgv_path = (fs::path(out_dir) / "tgv_state.bin").string();
-    save_tgv(tgv_path, tgv_state);
+    tgv_minimize_streaming(balanced_path, hist_path, treetop_path,
+                           origin, r_root_check, tgv_path, params);
 
-    // ---- Stage 7: marching cubes + write mesh --------------------------------
-    std::cout << "[Stage 7] Extracting surface...\n";
-    std::vector<bool> has_data(cubes.size());
-    for (size_t i = 0; i < hists.size(); ++i)
-        has_data[i] = hists[i].total() > 0;
-    auto tris = extract_surface(cubes, tgv_state, origin, r_root, has_data);
+    // ---- Stage 7: streaming marching cubes ------------------------------------
+    // Per-leaf extraction with ownership-based dedup; writes OBJ directly.
+    // No QSlim in streaming path (can be done as post-processing).
+    std::cout << "[Stage 7] Extracting surface (streaming, "
+              << leaves.size() << " leaves)...\n";
     std::string mesh_path = (fs::path(out_dir) / "mesh.obj").string();
-    write_obj(mesh_path, tris);
-    std::cout << "  " << tris.size() << " triangles → " << mesh_path << "\n";
+    extract_surface_streaming(balanced_path, tgv_path, treetop_path, hist_path,
+                              origin, r_root_check, mesh_path);
+    std::cout << "  → " << mesh_path << "\n";
 
     std::cout << "Done.\n";
     return 0;
